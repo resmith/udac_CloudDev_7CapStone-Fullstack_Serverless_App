@@ -1,0 +1,37 @@
+/**
+ * Utils: Back-end
+ */
+
+import { requestApi } from "./api-common"
+// import { getSession } from "./helpers"
+// import { useAuth0 } from "@auth0/auth0-react"
+
+export const createSpace = async (token, spaceName, spaceDescription) => {
+	return await requestApi(
+		"/spaces",
+		"POST",
+		{ spaceName, spaceDescription },
+		{
+			Authorization: `Bearer ${token}`,
+		}
+	)
+}
+
+/**
+ * Login a new user
+ */
+// export const getSpaces = async (token) => {
+// 	console.log("api-space getSpaces token: ", token)
+// 	return await requestApi("/spaces", "GET", null, {
+// 		Authorization: `Bearer ${token}`,
+// 	})
+// }
+
+// /**
+//  * userGet
+//  */
+// export const getSpace = async (token, spaceId) => {
+// 	return await requestApi(`/spaces/${spaceId}`, "GET", null, {
+// 		Authorization: `Bearer ${token}`,
+// 	})
+// }

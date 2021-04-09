@@ -1,0 +1,34 @@
+component: aws-dynamodb
+name: picspace-user
+
+provider:
+  name: AWS
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-west-2'}
+
+inputs:
+  name: ${name}-${stage}
+  # Don't delete the Database Table if "serverless remove" is run
+  deletionPolicy: retain
+  # Simple, single-table design
+  attributeDefinitions:
+    - AttributeName: hk
+      AttributeType: S
+    - AttributeName: sk
+      AttributeType: S
+    - AttributeName: sk2
+      AttributeType: S
+  keySchema:
+    - AttributeName: hk
+      KeyType: HASH
+    - AttributeName: sk
+      KeyType: RANGE
+  globalSecondaryIndexes:
+    - IndexName: gsi1
+      KeySchema:
+        - AttributeName: sk2
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      Projection:
+        ProjectionType: ALL

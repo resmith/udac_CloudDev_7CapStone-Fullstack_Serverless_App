@@ -1,0 +1,87 @@
+# Just contains the infrastructure
+service:
+  name: picspaces-infrastructure
+
+plugins:
+  - serverless-aws-documentation
+  - serverless-iam-roles-per-function
+  # - serverless-dynamodb-local
+  # - serverless-offline
+  # - serverless-dotenv-plugin # Load .env as environment variables
+
+package:
+  individually: true
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  tracing:
+    lambda: true
+    apiGateway: true
+  environment:
+    SPACES_TABLE: Spaces-${self:provider.stage}
+    SPACES_INDEX: Spaces-UserIndex-${self:provider.stage}
+    IMAGES_TABLE: Spaces-Images-${self:provider.stage}
+    IMAGE_ID_INDEX: ImageIdIndex
+    SIGNED_URL_EXPIRATION: 300
+    IMAGES_S3_BUCKET: rsmith-picspaces-images-${self:provider.stage}
+    
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - codedeploy:*
+      Resource:
+        - '*'
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+      Resource: arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*
+
+custom:
+  serverless-offline:
+    port: 3003
+
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+
+resources:
+  Resources:
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.IMAGES_S3_BUCKET}
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              MaxAge: 3000
+
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: MyPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketObjects
+              Effect: Allow
+              Principal: '*'
+              Action: s3:GetObject
+              Resource: 'arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*'
+        Bucket: !Ref AttachmentsBucket

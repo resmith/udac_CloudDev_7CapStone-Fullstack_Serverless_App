@@ -1,0 +1,258 @@
+service:
+  name: serverless-space-app
+
+plugins:
+  - serverless-iam-roles-per-function
+  - serverless-reqvalidator-plugin
+  - serverless-aws-documentation
+  - serverless-webpack
+  # - serverless-bundle # Package our functions with Webpack
+  # - serverless-dotenv-plugin # Load .env as environment variables
+
+# Issue with pack individually when there are a large # of functions
+# one option is:export NODE_OPTIONS=--max_old_space_size=8192
+# package:
+#   individually: true
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  lambdaHashingVersion: 20201221
+  tracing:
+    lambda: true
+    apiGateway: true
+  environment:
+    SPACES_TABLE: urspace-spaces-${self:provider.stage}
+    SPACES_INDEX: urspace-spaces-userIndex-${self:provider.stage}
+    IMAGES_TABLE: urspace-images-${self:provider.stage}
+    IMAGES_INDEX: urspace-images-imageIndex-${self:provider.stage}
+    IMAGE_ID_INDEX: urspace-ImageIdIndex
+    SIGNED_URL_EXPIRATION: 300
+    IMAGES_S3_BUCKET: rsmith-picspaces-images-${self:provider.stage}
+    AUTH0_PUBLIC_KEY: ${file(secret.pem)}
+    DEBUG: "jwks"
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - codedeploy:*
+          Resource:
+            - "*"
+
+custom:
+  serverless-offline:
+    port: 3003
+
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+
+  documentation:
+    api:
+      info:
+        version: v1.0.0
+        title: Serverless ToDo API
+        description: Serverless application for images sharing
+      contact:
+        name: "Robert Smith"
+        url: "http://github.com/resmith"
+      tags:
+        - name: "Serverless"
+          description: "Serveless Framework / AWS Serverless application"
+        - name: "DynamoDb"
+          description: "Back-end Db is AWS DynamoDb"
+        - name: "Lambda"
+          description: "Back-end API application code is AWS Lambda"
+    models:
+      - name: SpaceItem
+        contentType: application/json
+        schema: ${file(models/create-space-request.json)}
+      - name: SpaceUpdate
+        contentType: application/json
+        schema: ${file(models/update-space-request.json)}
+
+functions:
+  Auth:
+    handler: src/lambda/auth/auth0Authorizer.handler
+
+  GetSpace:
+    handler: src/lambda/http/getSpace.handler
+    events:
+      - http:
+          method: get
+          path: spaces/{spaceId}
+          authorizer: Auth
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}
+
+  GetSpaceImages:
+    handler: src/lambda/http/getSpaceImages.handler
+    events:
+      - http:
+          method: get
+          path: spaces/{spaceId}/attachments
+          authorizer: Auth
+          cors: true
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}/index/${self:provider.environment.IMAGES_INDEX}
+
+  GetSpaces:
+    handler: src/lambda/http/getSpaces.handler
+    events:
+      - http:
+          method: get
+          path: spaces
+          authorizer: Auth
+          cors: true
+          documentation:
+            summary: Get ToDos for the user
+            description: Get ToDos for the user
+            requestModels:
+              "application/json": SpaceItem
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}/index/${self:provider.environment.SPACES_INDEX}
+
+  CreateSpace:
+    handler: src/lambda/http/createSpace.handler
+    events:
+      - http:
+          method: post
+          path: spaces
+          cors: true
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Create a new group
+            description: Create a new group
+            requestModels:
+              "application/json": SpaceItem
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}
+
+  UpdateSpace:
+    handler: src/lambda/http/updateSpace.handler
+    events:
+      - http:
+          method: patch
+          path: spaces/{spaceId}
+          cors: true
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Update a Space list item
+            description: Update a Space List item
+            requestModels:
+              "application/json": SpaceItem
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+          - dynamodb:PutItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}
+
+  DeleteSpace:
+    handler: src/lambda/http/deleteSpace.handler
+    events:
+      - http:
+          method: delete
+          path: spaces/{spaceId}
+          cors: true
+          documentation:
+            summary: Delete an item
+            description: Delete an item
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+          - dynamodb:DeleteItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+          - dynamodb:DeleteItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:GetItem
+          - dynamodb:DeleteItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}/index/${self:provider.environment.IMAGES_INDEX}
+
+  GenerateUploadUrl:
+    handler: src/lambda/http/generateUploadUrl.handler
+    events:
+      - http:
+          method: post
+          path: spaces/{spaceId}/attachment
+          cors: true
+          documentation:
+            summary: Generate a Upload URL
+            description: Generate a Upload URL
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+          - dynamodb:PutItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.SPACES_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+          - dynamodb:PutItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.IMAGES_TABLE}
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+          - s3:GetObject
+        Resource: arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+
+    RequestBodyValidator:
+      Type: AWS::ApiGateway::RequestValidator
+      Properties:
+        Name: "request-body-validator"
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ValidateRequestBody: true
+        ValidateRequestParameters: false

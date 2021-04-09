@@ -1,0 +1,287 @@
+service:
+  name: serverless-todo-app
+
+plugins:
+  - serverless-iam-roles-per-function
+  - serverless-reqvalidator-plugin
+  - serverless-aws-documentation
+  - serverless-webpack
+  # - serverless-bundle # Package our functions with Webpack
+  # - serverless-dotenv-plugin # Load .env as environment variables
+
+# Issue with pack individually when there are a large # of functions
+# one option is:export NODE_OPTIONS=--max_old_space_size=8192
+# package:
+#   individually: true
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  lambdaHashingVersion: 20201221
+  tracing:
+    lambda: true
+    apiGateway: true
+  environment:
+    TODOS_TABLE: Todos-${self:provider.stage}
+    TODOS_INDEX: TodosIndex-${self:provider.stage}    
+    IMAGES_TABLE: Todos-Images-${self:provider.stage}
+    IMAGE_ID_INDEX: ImageIdIndex
+    SIGNED_URL_EXPIRATION: 300
+    IMAGES_S3_BUCKET: rsmith-serverless-todos-images-${self:provider.stage}
+    AUTH0_PUBLIC_KEY: ${file(secret.pem)}
+    DEBUG: 'jwks'
+  iam:
+    role:
+      statements:
+      - Effect: Allow
+        Action:
+          - codedeploy:*
+        Resource:
+          - '*'
+
+custom:
+  serverless-offline:
+    port: 3003
+
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+
+  documentation:
+    api:
+      info:
+        version: v1.0.0
+        title: Serverless ToDo API
+        description: Serverless application for images sharing
+      contact:
+        name: "Robert Smith"
+        url: "http://www.example.com/me"
+        email: "js@example.com"
+      tags:
+        -
+          name: "Serverless"
+          description: "Serveless Framework / AWS Serverless application"
+        -
+          name: "DynamoDb"
+          description: "Back-end Db is AWS DynamoDb"             
+        -
+          name: "Lambda"
+          description: "Back-end API application code is AWS Lambda"             
+    models:
+      - name: TodoItem
+        contentType: application/json
+        schema: ${file(models/create-todo-request.json)}
+      - name: TodoUpdate
+        contentType: application/json
+        schema: ${file(models/update-todo-request.json)}
+      - name: TodoDelete
+        contentType: application/json
+        schema: ${file(models/delete-todo-request.json)}
+
+functions:
+  Auth:
+    handler: src/lambda/auth/auth0Authorizer.handler
+
+  GetTodo:
+    handler: src/lambda/http/getTodos.handler
+    events:
+      - http:
+          method: get
+          path: todos/{todoId}
+          authorizer: Auth
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone   
+          documentation:
+            summary: Get a ToDo item
+            description: Get a ToDo item
+            requestModels:
+              'application/json': TodoItem                 
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query        
+          - dynamodb:GetItem          
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+  
+  GetTodo2:
+    handler: src/lambda/http/getTodos.handler
+    events:
+      - http:
+          method: get
+          path: todoit/{todoId}
+          authorizer: Auth
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone  
+          documentation:
+            summary: Get a ToDo item
+            description: Get a ToDo item
+            requestModels:
+              'application/json': TodoItem                 
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query        
+          - dynamodb:GetItem          
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+
+  GetTodos:
+    handler: src/lambda/http/getTodos.handler
+    events:
+      - http:
+          method: get
+          path: todos
+          authorizer: Auth
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone  
+          documentation:
+            summary: Get ToDos for the user
+            description: Get ToDos for the user
+            requestModels:
+              'application/json': TodoItem           
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Scan        
+          - dynamodb:Query
+          - dynamodb:GetItem          
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:Scan        
+          - dynamodb:Query
+          - dynamodb:GetItem  
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODOS_INDEX}
+
+  # TODO: Configure this function
+  CreateTodo:
+    handler: src/lambda/http/createTodo.handler
+    events:
+      - http:
+          method: post
+          path: todos
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone  
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Create a new group
+            description: Create a new group
+            requestModels:
+              'application/json': TodoItem                 
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+        - dynamodb:PutItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+
+  # TODO: Configure this function
+  UpdateTodo:
+    handler: src/lambda/http/updateTodo.handler
+    events:
+      - http:
+          method: patch
+          path: todos/{todoId}
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone          
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Update a Todo list item
+            description: Update a Todo List item
+            requestModels:
+              'application/json': TodoItem                 
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem      
+          - dynamodb:PutItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+
+  # TODO: Configure this function
+  DeleteTodo:
+    handler: src/lambda/http/deleteTodo.handler
+    events:
+      - http:
+          method: delete
+          path: todos/{todoId}
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone          
+          documentation:
+            summary: Delete an item
+            description: Delete an item
+            requestModels:
+              'application/json': TodoItem                 
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:DeleteItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+
+  # TODO: Configure this function
+  GenerateUploadUrl:
+    handler: src/lambda/http/generateUploadUrl.handler
+    events:
+      - http:
+          method: post
+          path: todos/{todoId}/attachment
+          cors: 
+            origin: '*'
+            headers:
+              - Access-Control-Allow-Credentials
+              - Z-Client-Timezone  
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Generate a Upload URL
+            description: Generate a Upload URL
+            requestModels:
+              'application/json': TodoItem                 
+
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:PutObject
+          - s3:GetObject
+        Resource: arn:aws:s3:::${self:provider.environment.IMAGES_S3_BUCKET}/*
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+
+    RequestBodyValidator:
+      Type: AWS::ApiGateway::RequestValidator
+      Properties:
+        Name: 'request-body-validator'
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ValidateRequestBody: true
+        ValidateRequestParameters: false
+
