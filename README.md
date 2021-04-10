@@ -30,12 +30,14 @@ The back-end may still be working that was deployed initially for this project, 
 
 #### Add your AWS credentials
 
-Then, add your AWS credentials in the `.env` file in the root directory, like this:
+Add your AWS credentials in the `.env` file in the root directory, like this:
 
 ```text
 AWS_ACCESS_KEY_ID=SDADSADADADASDADA
 AWS_SECRET_ACCESS_KEY=ASDASDASDASDASDAD
 ```
+
+[For additional information](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)
 
 #### Deploy the back-end
 
@@ -94,7 +96,7 @@ npm start
 
 ## Project Structure Strategy
 
-The code was split into the back-end code(api-spaces) and the front-end code(site). The back-end code was further split into the lambda code, s3 and dynamodb. The reason for this split is the db structure is more stable and incurs less frequent change. The Lambda code changes much more frequently.In addition, deploying the changes using Serverless to DynamoDb is not as reliable because of issues with the delete potentially hindering the deploy, which has been experienced.
+The code was split into the back-end code(api-spaces) and the front-end code(site). The back-end code was further split into the lambda code, s3 and dynamodb. The reason for this split is the db structure is more stable and incurs less frequent change. The Lambda code changes much more frequently. In addition, deploying the changes using Serverless to DynamoDb is not as reliable because of issues with the delete potentially hindering the deploy, which has been experienced.
 
 ## Project Structure - Severless.yml
 
@@ -118,13 +120,13 @@ Dataflows from:
 
 - lambda/http ->
 - businessLogic ->
-- datalayer & return back up the chain
+- datalayer & returns back up the chain
 
 _Note:_ The authorization occurs first for all events
 
 ### Front-end
 
-The front-end code is located at /src. The front-end code is split into:
+The front-end code is located at _/src_. The front-end code is split into:
 
 - api: the api calls to the back-end are made here
 - auth: authorization code
@@ -136,7 +138,7 @@ The front-end code is located at /src. The front-end code is split into:
 
 ## Different Coding Styles
 
-- There are different coding styles utilized to show the mulitple ways things can be done with React/JS/TS. For example, the page _Space_ is a pure component and uses _useEffect_. _CreateSpace_ is a react compoment and uses the lifecycle stages _componentDidMount_. Understanding the different ways to achieve a goal is important, even though one is preferred over the other, various methods will be seen in the wild at different organizations.
+There are different coding styles utilized to show the mulitple ways things can be done with React/JS/TS. For example, the page _Space_ is a pure component and uses _useEffect_. _CreateSpace_ is a react compoment and uses the lifecycle stages _componentDidMount_. Understanding the different ways to achieve a goal is important, even though one is preferred over the other, various methods will be seen in the wild at different organizations.
 
 ## Issues Encountered & Solutions
 
@@ -219,4 +221,5 @@ DynamoDb Spaces Tables
 DynamoDb Images Tables
 ![DynamoDb Images Tables](screenshots/PicSpace_Dynamodb_ImagesTable.png)
 
+Delete Functionality
 ![Delete Functionality](screenshots/PicSpace_DeleteFunctionality.png)
